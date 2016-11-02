@@ -53,8 +53,14 @@ public class View_ChatWindow : ViewBase
         if(string.IsNullOrEmpty(m_inputChatField.text)){
             return;
         }
+        
         m_listener.SendChatMessage(m_inputChatField.text);
         m_inputChatField.text = "";
+        
+        // 特定のチャンネル(システム)には発言できない.“システム”で発言しようとしていた場合はチャンネルを”全体"に移動.
+        if(m_currentChannelName == "システム"){
+            this.DidChannelChanged("全体");
+        }
     }
     
 #endregion
@@ -79,7 +85,7 @@ public class View_ChatWindow : ViewBase
         }
     }
     
-    // コールバック：グローバルチャットメッセージ取得.チャンネル切り替え時.
+    // コールバック：トグル操作によるチャンネル切り替え時.
     void DidChannelChanged(string channelName)
     {
         foreach(var tgl in m_toggleList){
@@ -87,7 +93,8 @@ public class View_ChatWindow : ViewBase
             tgl.IsOn = tgl.ChannelName == channelName;
             // 文言表示の切り替え.
             if(tgl.IsOn){
-                m_listener.ChangeChannel(tgl.ChannelName);
+                m_currentChannelName = tgl.ChannelName;
+                m_listener.ChangeChannel(m_currentChannelName);
             }
         }
     }
@@ -116,6 +123,8 @@ public class View_ChatWindow : ViewBase
     
     private InputField m_inputChatField;
     private InputField m_userNameField;
+    
+    private string m_currentChannelName;
     
     private List<View_ChannelToggle> m_toggleList = new List<View_ChannelToggle>();
     

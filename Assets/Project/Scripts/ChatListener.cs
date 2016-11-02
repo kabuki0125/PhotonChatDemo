@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using ExitGames.Client.Photon.Chat;
 
 /// <summary>
@@ -92,7 +93,12 @@ public class ChatListener : MonoBehaviour, IChatClientListener
             return;
         }
         
-        m_client.PublishMessage(m_currentChannel, message);
+        // 特定のチャンネル(システム)には発言できない.
+        var channel = m_currentChannel;
+        if(m_currentChannel == "システム"){
+            channel = "全体";
+        }
+        m_client.PublishMessage(channel, message);
     }
     
     /// <summary>
@@ -108,12 +114,18 @@ public class ChatListener : MonoBehaviour, IChatClientListener
         var message = "";
         m_currentChannel = channelName;
         if(m_currentChannel == "全体"){
+            foreach(var str in m_logList){
+                message += str;
+            }
+            /*
+            // TODO : こっちの方法でやるとチャンネル毎の表示になってしまい順番が時系列順にならない.戒めにとっておく.
             foreach(var kvp in m_client.PublicChannels){
                 message += kvp.Value.ToStringMessages();
             }
             foreach(var kvp in m_client.PrivateChannels){
                 message += kvp.Value.ToStringMessages();
             }
+            */
         }else{
             ChatChannel channel;
             if( !m_client.TryGetChannel(channelName, out channel) ){
@@ -121,6 +133,7 @@ public class ChatListener : MonoBehaviour, IChatClientListener
                 return;
             }
             message = channel.ToStringMessages();
+            message = this.ColoringText(message, channelName);
         }
         
         // TODO : グローバルメッセージとして.プライベートチャットかどうかをここで判断する必要が有る.
@@ -180,7 +193,7 @@ public class ChatListener : MonoBehaviour, IChatClientListener
     /// <summary>接続状態に変更があった場合通知される.現状はOnConnectedとOnDisconnectedを使用するが将来的により多くのステータスが追加された場合使用予定とのこと.</summary>
     public void OnChatStateChange(ChatState state){}
 
-    /// <summary>新規メッセージ取得時の処理.senderの長さ=messagesの長さで、各要素番号のsenderがそれぞれの要素番号のmessagesを送信している.</summary>
+    /// <summary>新規メッセージ取得時の処理.同タイミングで渡されてきたメッセージはまとまって返ってくる.senderの長さ=messagesの長さで、各要素番号のsenderがそれぞれの要素番号のmessagesを送信している.</summary>
     public void OnGetMessages(string channelName, string[] senders, object[] messages)
     {
         if(senders == null || senders.Length <= 0){
@@ -188,6 +201,17 @@ public class ChatListener : MonoBehaviour, IChatClientListener
         }
         if(messages == null || messages.Length <= 0){
             return;
+        }
+        
+        // TODO : ”全体”チャンネル用にログをキャッシュ.処理をまとめるべき.
+        for(var i = 0 ; i < messages.Length ; i++){
+            if(m_logList.Count >= LOG_CACHE_CAPACITY){
+                m_logList.RemoveAt(m_logList.Count-1);
+            }
+            var suffix = i <= messages.Length-1 ? "\n" : "";
+            var message = senders[i]+": "+(messages[i] as string)+suffix;   // user名: メッセージの形式にして、
+            message = this.ColoringText(message, channelName);              // 該当のチャンネル毎に色を設定して、
+            m_logList.Add( message );   // 追加する。
         }
         
         if(channelName == m_currentChannel){
@@ -228,6 +252,23 @@ public class ChatListener : MonoBehaviour, IChatClientListener
     
 #endregion
     
+    // 指定テキストを指定されたチャンネル毎に着色する.
+    private string ColoringText(string text, string channelName)
+    {
+        var baseText = "<color={0}>"+text+"</color>";
+        switch(channelName){
+        case "全体":
+            return string.Format(baseText, "white");
+        case "パーティ":
+            return string.Format(baseText, "magenta");
+        case "ギルド":
+            return string.Format(baseText, "purple");
+        case "システム":
+            return string.Format(baseText, "yellow");
+        }
+        return null;
+    }
+    
     void Awake()
     {
         DontDestroyOnLoad(this.gameObject);
@@ -241,6 +282,9 @@ public class ChatListener : MonoBehaviour, IChatClientListener
     private string m_userName;
     private int m_cntRetry;
     private string m_currentChannel;    // 現在選択中のチャンネル名.
+    
+    private List<string> m_logList = new List<string>();     // チャンネルに依存しない時系列順の過去ログ.
+    private static readonly int LOG_CACHE_CAPACITY = 100;   // キャッシュするログのキャパ.
     
     private static readonly string STR_APP_ID = "5bd08206-1fdd-4405-bbd3-74871ee85b53";     // TODO : 実際はサーバーから落としてくるなりクライアントでDefineをきるなりする.
     private static readonly string[] FRIEND_LIST_DEMO = new string[]{ "かえで", "まさる" };   // TODO : 実際はサーバーから予めフレンドリストを取得しておく必要あり.
