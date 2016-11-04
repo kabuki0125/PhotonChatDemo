@@ -201,6 +201,8 @@ public class ChatListener : MonoBehaviour, IChatClientListener
         if(m_didConnect != null){
             m_didConnect();
         }
+        
+        m_client.PublishMessage("システム", m_userName+"さんが入室しました！");
     }
 
     /// <summary>接続状態に変更があった場合通知される.現状はOnConnectedとOnDisconnectedを使用するが将来的により多くのステータスが追加された場合使用予定とのこと.</summary>
