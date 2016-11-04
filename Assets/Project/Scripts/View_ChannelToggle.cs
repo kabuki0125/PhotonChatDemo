@@ -19,6 +19,7 @@ public class View_ChannelToggle : ViewBase
         }
         set {
             this.GetComponent<Toggle>().isOn = value;
+            this.GetComponent<Toggle>().enabled = !value;
         }
     }
     

@@ -180,7 +180,7 @@ public class ChatListener : MonoBehaviour, IChatClientListener
         Debug.Log("[ChatManager] OnDisconnected : disconnect server.");
         
         // リトライ.
-        Debug.Log("[ChatManager] OnDisconnected : retry connect. cnt="+m_cntRetry);
+        Debug.Log("retry connect. cnt="+m_cntRetry);
         this.StartCoroutine("StartConnect");
     }
 
@@ -228,7 +228,6 @@ public class ChatListener : MonoBehaviour, IChatClientListener
         }
         
         var message = this.GetChannelLog(channelName);
-        
         // TODO : グローバルメッセージとして.プライベートチャットかどうかをここで判断する必要が有る.
         if(this.DidGetGlobalMessage != null){
             this.DidGetGlobalMessage( m_currentChannel, message );
@@ -288,6 +287,14 @@ public class ChatListener : MonoBehaviour, IChatClientListener
         DontDestroyOnLoad(this.gameObject);
     }
 
+    void OnEnable()
+    {
+        // アプリサスペンド時はリトライ.
+        if(!m_bInit){
+            return;
+        }
+        this.StartCoroutine("StartConnect");
+    }
     
     private Action m_didConnect;        // 接続成功時の処理.
     private Action<string,string[],bool[]> m_didSubscrib;  // 購読開始時の処理.
