@@ -29,6 +29,28 @@ public class View_ChatWindow : ViewBase
         this.SetActivePanel(PanelType.PickName);
     }
     
+    // チャットウィンドウの切り替え.
+    private void SetActivePanel(PanelType type)
+    {
+        m_errorPanel.gameObject.SetActive(type == PanelType.Error);
+        m_pickNamePanel.gameObject.SetActive(type == PanelType.PickName);
+        m_chatPanel.gameObject.SetActive(type == PanelType.Chat);
+    }
+    
+    // チャンネル切り替え時.
+    private void ChannelChanged(string channelName)
+    {
+        foreach(var tgl in m_toggleList){
+            // トグルの切り替え.
+            tgl.IsOn = tgl.ChannelName == channelName;
+            // 文言表示の切り替え.
+            if(tgl.IsOn){
+                m_currentChannelName = tgl.ChannelName;
+                m_listener.ChangeChannel(m_currentChannelName);
+            }
+        }
+    }
+    
 #region ButtonEvents.
     
     // 名前決定ボタン押下.
@@ -38,10 +60,9 @@ public class View_ChatWindow : ViewBase
             return;
         }
         
-        
         this.SetActivePanel(PanelType.None);
         m_listener.Init(m_userNameField.text, 
-                        () => this.SetActivePanel(PanelType.Chat), 
+                        () => { this.SetActivePanel(PanelType.Chat); View_ChannelToggle.DidToggleActive += ChannelChanged; },
                         DidSubScribe);
         
         m_userNameField.text = "";
@@ -54,12 +75,13 @@ public class View_ChatWindow : ViewBase
             return;
         }
         
+        Debug.Log("[View_ChatWindow] DidTapSend : message="+m_inputChatField.text);
         m_listener.SendChatMessage(m_inputChatField.text);
         m_inputChatField.text = "";
         
         // 特定のチャンネル(システム)には発言できない.“システム”で発言しようとしていた場合はチャンネルを”全体"に移動.
         if(m_currentChannelName == "システム"){
-            this.DidChannelChanged("全体");
+            this.ChannelChanged("全体");
         }
     }
     
@@ -73,29 +95,11 @@ public class View_ChatWindow : ViewBase
             if(!results[i]){
                 continue;
             }
-            if(m_toggleList.Exists(tgl => tgl.ChannelName == channels[i])){
-                continue;   // 再接続時を考慮.
-            }
             var go = GameObjectEx.LoadAndCreateObject("Channel Toggle");
             go.GetComponent<RectTransform>().SetParent(this.GetScript<Image>("ChannelBar Panel").transform);    // RectTransformの親設定は通常と異なる.
             var com = go.GetOrAddComponent<View_ChannelToggle>();
             com.Init(channels[i], channels[i] == currentName);
-            com.DidToggleActive += DidChannelChanged;
             m_toggleList.Add(com);
-        }
-    }
-    
-    // コールバック：トグル操作によるチャンネル切り替え時.
-    void DidChannelChanged(string channelName)
-    {
-        foreach(var tgl in m_toggleList){
-            // トグルの切り替え.
-            tgl.IsOn = tgl.ChannelName == channelName;
-            // 文言表示の切り替え.
-            if(tgl.IsOn){
-                m_currentChannelName = tgl.ChannelName;
-                m_listener.ChangeChannel(m_currentChannelName);
-            }
         }
     }
     
@@ -106,13 +110,6 @@ public class View_ChatWindow : ViewBase
         m_logText.text = newMessage;
     }
     
-    // チャットウィンドウの切り替え.
-    private void SetActivePanel(PanelType type)
-    {
-        m_errorPanel.gameObject.SetActive(type == PanelType.Error);
-        m_pickNamePanel.gameObject.SetActive(type == PanelType.PickName);
-        m_chatPanel.gameObject.SetActive(type == PanelType.Chat);
-    }
     
     private ChatListener m_listener;    // TODO : 実際に使用する場合はListenerはアプリ起動直後に初期化、常駐させるのがベター.
     

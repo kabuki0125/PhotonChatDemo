@@ -110,10 +110,23 @@ public class ChatListener : MonoBehaviour, IChatClientListener
             return;
         }
         
-        // 全体には全てのチャンネルのメッセージを表示.
-        var message = "";
         m_currentChannel = channelName;
-        if(m_currentChannel == "全体"){
+        var message = this.GetChannelLog(m_currentChannel);
+        
+        // TODO : グローバルメッセージとして.プライベートチャットかどうかをここで判断する必要が有る.
+        if(this.DidGetGlobalMessage != null){
+            this.DidGetGlobalMessage( m_currentChannel, message );
+        }
+    }
+    
+    // 現在チャンネルのログを取得.
+    private string GetChannelLog(string channelName)
+    {
+        var message = "";
+        
+        // 全体には全てのチャンネルのメッセージを表示.
+        switch(m_currentChannel){
+        case "全体":
             foreach(var str in m_logList){
                 message += str;
             }
@@ -126,20 +139,21 @@ public class ChatListener : MonoBehaviour, IChatClientListener
                 message += kvp.Value.ToStringMessages();
             }
             */
-        }else{
-            ChatChannel channel;
-            if( !m_client.TryGetChannel(channelName, out channel) ){
-                // とりあえず見知らぬチャンネルのメッセージは無視.
-                return;
+            break;
+        default:
+            {
+                ChatChannel channel;
+                if( !m_client.TryGetChannel(channelName, out channel) ){
+                    // とりあえず見知らぬチャンネルのメッセージは無視.
+                    break;
+                }
+                message = channel.ToStringMessages();
+                message = this.ColoringText(message, channelName);
             }
-            message = channel.ToStringMessages();
-            message = this.ColoringText(message, channelName);
+            break;
         }
         
-        // TODO : グローバルメッセージとして.プライベートチャットかどうかをここで判断する必要が有る.
-        if(this.DidGetGlobalMessage != null){
-            this.DidGetGlobalMessage( m_currentChannel, message );
-        }
+        return message;
     }
 
 #region implements interface members
@@ -165,12 +179,9 @@ public class ChatListener : MonoBehaviour, IChatClientListener
     {
         Debug.Log("[ChatManager] OnDisconnected : disconnect server.");
         
-        // リトライ回数に満たなければリトライ.
-        if(m_cntRetry < retryLimitCnt){
-            Debug.Log("[ChatManager] OnDisconnected : retry connect. cnt="+m_cntRetry);
-            this.StartCoroutine("StartConnect");
-            m_cntRetry++;
-        }
+        // リトライ.
+        Debug.Log("[ChatManager] OnDisconnected : retry connect. cnt="+m_cntRetry);
+        this.StartCoroutine("StartConnect");
     }
 
     /// <summary>接続時のコールバック.</summary>
@@ -184,6 +195,8 @@ public class ChatListener : MonoBehaviour, IChatClientListener
             m_currentChannel = channels[0];
             m_client.Subscribe(channels, logLengthToFetch);
         }
+        
+        m_bInit = true; // ここで初期化終了.
         
         if(m_didConnect != null){
             m_didConnect();
@@ -209,13 +222,16 @@ public class ChatListener : MonoBehaviour, IChatClientListener
                 m_logList.RemoveAt(m_logList.Count-1);
             }
             var suffix = i <= messages.Length-1 ? "\n" : "";
-            var message = senders[i]+": "+(messages[i] as string)+suffix;   // user名: メッセージの形式にして、
-            message = this.ColoringText(message, channelName);              // 該当のチャンネル毎に色を設定して、
-            m_logList.Add( message );   // 追加する。
+            var msg = senders[i]+": "+(messages[i] as string)+suffix;   // user名: メッセージの形式にして、
+            msg = this.ColoringText(msg, channelName);              // 該当のチャンネル毎に色を設定して、
+            m_logList.Add( msg );   // 追加する。
         }
         
-        if(channelName == m_currentChannel){
-            this.ChangeChannel(channelName);
+        var message = this.GetChannelLog(channelName);
+        
+        // TODO : グローバルメッセージとして.プライベートチャットかどうかをここで判断する必要が有る.
+        if(this.DidGetGlobalMessage != null){
+            this.DidGetGlobalMessage( m_currentChannel, message );
         }
     }
 
@@ -231,14 +247,12 @@ public class ChatListener : MonoBehaviour, IChatClientListener
         }
     }
 
-    /// <summary>購読操作の結果.要求された全てのチャンネル名のサブスクリプションが返ってくる.</summary>
+    /// <summary>購読操作の結果.要求したチャンネル分が返ってくる.</summary>
     public void OnSubscribed(string[] channels, bool[] results)
     {
         if(m_didSubscrib != null){
             m_didSubscrib(m_currentChannel, channels, results);
         }
-        
-        m_bInit = true; // ここで初期化終了.
     }
 
     /// <summary>登録解除操作の結果.チャンネルを退会している場合チャンネル名を返す.</summary>

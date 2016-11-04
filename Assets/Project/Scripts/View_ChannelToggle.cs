@@ -23,7 +23,8 @@ public class View_ChannelToggle : ViewBase
     }
     
     /// <summary>トグルの値変化時のイベント.</summary>
-    public event Action<string/*channelName*/> DidToggleActive;
+    public static event Action<string/*channelName*/> DidToggleActive;
+    
     
     /// <summary>
     /// 初期化.
@@ -43,8 +44,8 @@ public class View_ChannelToggle : ViewBase
         if(!bActive){
             return;
         }
-        if(this.DidToggleActive != null){
-            this.DidToggleActive(this.ChannelName);
+        if(DidToggleActive != null){
+            DidToggleActive(this.ChannelName);
         }
     }
 }
