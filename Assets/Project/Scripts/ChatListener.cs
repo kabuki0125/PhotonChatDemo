@@ -13,9 +13,13 @@ public class ChatListener : MonoBehaviour, IChatClientListener
     [SerializeField]
     private string[] channels;
     
-    /// <summary>取ってくる過去ログの長さ.</summary>
+    /// <summary>初回に取ってくる過去ログの長さ.</summary>
     [SerializeField]
     private int logLengthToFetch = 10; 
+    
+    /// <summary>ログのキャッシュキャパ.</summary>
+    [SerializeField]
+    private int logCacheCapacity = 100;
     
     [Header("Connection Settings")]
     /// <summary>再接続リトライ上限.</summary>
@@ -32,6 +36,9 @@ public class ChatListener : MonoBehaviour, IChatClientListener
     /// <summary>プライベートチャットメッセージ取得.</summary>
     public event Action<string/*sender*/,object/*message*/,string/*channelName*/> DidGetPrivateMessge;
     
+    /// <summary>初期化が終わってる？</summary>
+    public bool IsInit { get; private set; }
+    
     
     /// <summary>
     /// 初期化.
@@ -43,6 +50,7 @@ public class ChatListener : MonoBehaviour, IChatClientListener
             return;
         }
         
+        m_valLogFetch = logLengthToFetch;
         m_userName = userName;
         m_didConnect = didConnect;
         m_didSubscrib = didSubscribe;
@@ -52,6 +60,7 @@ public class ChatListener : MonoBehaviour, IChatClientListener
     private IEnumerator StartConnect()
     {
         m_client = new ChatClient(this);
+        m_client.MessageLimit = logCacheCapacity;
         var bConnect = m_client.Connect( STR_APP_ID, "1.0", new ExitGames.Client.Photon.Chat.AuthenticationValues(m_userName) );
         
         // 失敗.
@@ -85,7 +94,7 @@ public class ChatListener : MonoBehaviour, IChatClientListener
     /// </summary>
     public void SendChatMessage(string message)
     {
-        if(!m_bInit){
+        if(!this.IsInit){
             return;
         }
         if(string.IsNullOrEmpty(message)){
@@ -193,13 +202,15 @@ public class ChatListener : MonoBehaviour, IChatClientListener
         // メッセージの購読.指定数分の過去ログを取得することも可能.
         if(channels != null && channels.Length > 0){
             m_currentChannel = channels[0];
-            m_client.Subscribe(channels, logLengthToFetch);
+            m_client.Subscribe(channels, m_valLogFetch);
+            m_valLogFetch = 0;
         }
         
-        m_bInit = true; // ここで初期化終了.
+        this.IsInit = true; // ここで初期化終了.
         
         if(m_didConnect != null){
             m_didConnect();
+            m_didConnect = null;
         }
         
         m_client.PublishMessage("システム", m_userName+"さんが入室しました！");
@@ -220,8 +231,8 @@ public class ChatListener : MonoBehaviour, IChatClientListener
         
         // TODO : ”全体”チャンネル用にログをキャッシュ.処理をまとめるべき.
         for(var i = 0 ; i < messages.Length ; i++){
-            if(m_logList.Count >= LOG_CACHE_CAPACITY){
-                m_logList.RemoveAt(m_logList.Count-1);
+            if(m_logList.Count >= logCacheCapacity){
+                m_logList.RemoveAt(0);
             }
             var suffix = i <= messages.Length-1 ? "\n" : "";
             var msg = senders[i]+": "+(messages[i] as string)+suffix;   // user名: メッセージの形式にして、
@@ -292,22 +303,21 @@ public class ChatListener : MonoBehaviour, IChatClientListener
     void OnEnable()
     {
         // アプリサスペンド時はリトライ.
-        if(!m_bInit){
+        if(!this.IsInit){
             return;
         }
         this.StartCoroutine("StartConnect");
     }
     
+    private int m_valLogFetch;  // 取ってくるログの長さ.初回起動時以降、再接続時はログ表示がおかしくなるので0になる.
     private Action m_didConnect;        // 接続成功時の処理.
     private Action<string,string[],bool[]> m_didSubscrib;  // 購読開始時の処理.
-    private bool m_bInit = false;       // 初期化が終わってる？
     private ChatClient m_client;
     private string m_userName;
     private int m_cntRetry;
     private string m_currentChannel;    // 現在選択中のチャンネル名.
     
     private List<string> m_logList = new List<string>();     // チャンネルに依存しない時系列順の過去ログ.
-    private static readonly int LOG_CACHE_CAPACITY = 100;   // キャッシュするログのキャパ.
     
     private static readonly string STR_APP_ID = "5bd08206-1fdd-4405-bbd3-74871ee85b53";     // TODO : 実際はサーバーから落としてくるなりクライアントでDefineをきるなりする.
     private static readonly string[] FRIEND_LIST_DEMO = new string[]{ "かえで", "まさる" };   // TODO : 実際はサーバーから予めフレンドリストを取得しておく必要あり.

@@ -95,6 +95,9 @@ public class View_ChatWindow : ViewBase
             if(!results[i]){
                 continue;
             }
+            if( m_toggleList.Exists(tgl => tgl.ChannelName == channels[i]) ){
+                continue;   // 再接続時を考慮.
+            }
             var go = GameObjectEx.LoadAndCreateObject("Channel Toggle");
             go.GetComponent<RectTransform>().SetParent(this.GetScript<Image>("ChannelBar Panel").transform);    // RectTransformの親設定は通常と異なる.
             var com = go.GetOrAddComponent<View_ChannelToggle>();
@@ -107,8 +110,39 @@ public class View_ChatWindow : ViewBase
     void DidGetGlobalMessageProc(string channelName, string newMessage)
     {
         // メッセージの更新.
+        m_logText.text = "";
         m_logText.text = newMessage;
     }
+    
+    
+#region debug
+    
+    void OnGUI()
+    {
+        if(!m_listener.IsInit){
+            return;
+        }
+        
+        var text = m_bDebugSending ? "Stop auto message." : "Send message loop with auto.";
+        if(GUILayout.Button(text)){
+            if(m_bDebugSending){
+                this.StopCoroutine("SendLoopMessage");
+            }else{
+                this.StartCoroutine("SendLoopMessage");
+            }
+            m_bDebugSending = !m_bDebugSending;
+        }
+    }
+    private IEnumerator SendLoopMessage()
+    {
+        while(true){
+            m_listener.SendChatMessage("test");
+            yield return new WaitForSeconds(0.1f);
+        }
+    }
+    private bool m_bDebugSending = false;
+    
+#endregion
     
     
     private ChatListener m_listener;    // TODO : 実際に使用する場合はListenerはアプリ起動直後に初期化、常駐させるのがベター.
